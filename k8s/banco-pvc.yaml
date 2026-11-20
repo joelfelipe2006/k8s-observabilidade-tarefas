@@ -1,0 +1,19 @@
+# =============================================================================
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Volume persistente do PostgreSQL. No Minikube o StorageClass "standard"
+# (hostpath) atende o pedido automaticamente, então os dados sobrevivem
+# à recriação do pod do banco.
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: banco-pvc
+  labels:
+    app: banco
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

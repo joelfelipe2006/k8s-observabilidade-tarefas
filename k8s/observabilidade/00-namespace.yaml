@@ -1,0 +1,14 @@
+# =============================================================================
+# Desenvolvimento de Sistemas Distribuídos - ADS4 - SENAI FATESG
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Namespace separado para a stack de observabilidade:
+#   Prometheus (métricas) · Loki (logs) · Tempo (traces)
+#   OpenTelemetry Collector (coleta) · Grafana (dashboards)
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: observabilidade
+  labels:
+    name: observabilidade

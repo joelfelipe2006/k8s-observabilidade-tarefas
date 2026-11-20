@@ -1,0 +1,76 @@
+# =============================================================================
+# Desenvolvimento de Sistemas Distribuídos - ADS4 - SENAI FATESG
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Aplicação web "Tarefas Distribuídas" com 2 RÉPLICAS conectadas ao banco
+# pelo Service "banco-service". A imagem é construída dentro do Minikube:
+#   minikube image build -t tarefas-app:1.0 ./app
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  labels:
+    app: app
+    tier: web
+spec:
+  replicas: 2                          # requisito: no mínimo 2 réplicas
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+        tier: web
+    spec:
+      containers:
+        - name: app
+          image: tarefas-app:1.0
+          imagePullPolicy: IfNotPresent   # imagem local do Minikube, não baixa da internet
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # ---- Conexão com o banco de dados ----
+            - name: DB_HOST
+              value: banco-service
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef: { name: banco-secret, key: POSTGRES_DB }
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef: { name: banco-secret, key: POSTGRES_USER }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: banco-secret, key: POSTGRES_PASSWORD }
+            # ---- Identidade do pod (mostrada na tela e nos traces) ----
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef: { fieldPath: metadata.namespace }
+            # ---- OpenTelemetry: envia traces e métricas ao Collector ----
+            - name: OTEL_SERVICE_NAME
+              value: app-tarefas
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observabilidade.svc.cluster.local:4317
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

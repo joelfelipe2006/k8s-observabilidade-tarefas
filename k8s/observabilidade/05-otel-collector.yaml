@@ -1,0 +1,170 @@
+# =============================================================================
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# OPENTELEMETRY COLLECTOR — o "hub" de telemetria. Roda como DaemonSet
+# (um por nó) e tem 3 pipelines:
+#
+#   traces : app (OTLP)          -> Collector -> Tempo
+#   metrics: app (OTLP)          -> Collector -> /metrics:8889 <- Prometheus
+#   logs   : arquivos dos pods   -> Collector -> Loki (OTLP)
+#            (/var/log/pods do namespace "default": app + banco)
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-config
+  namespace: observabilidade
+data:
+  otel-collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+      # Lê os logs (stdout/stderr) dos containers gravados pelo kubelet no nó
+      filelog:
+        include:
+          - /var/log/pods/default_*/*/*.log
+        start_at: beginning
+        include_file_path: true
+        operators:
+          # detecta o formato (docker/containerd/cri-o) e extrai
+          # k8s.namespace.name, k8s.pod.name e k8s.container.name do caminho
+          - type: container
+            id: container-parser
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      batch:
+        timeout: 5s
+      # Nos logs, usa o nome do container como service.name (vira o label
+      # service_name no Loki: "app" ou "postgres")
+      resource/logs:
+        attributes:
+          - key: service.name
+            from_attribute: k8s.container.name
+            action: insert
+
+    exporters:
+      otlp/tempo:
+        endpoint: tempo.observabilidade.svc.cluster.local:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki.observabilidade.svc.cluster.local:3100/otlp
+      prometheus:
+        endpoint: 0.0.0.0:8889
+        # transforma atributos como k8s.pod.name em labels (k8s_pod_name)
+        resource_to_telemetry_conversion:
+          enabled: true
+      debug:
+        verbosity: basic
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/tempo]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [prometheus]
+        logs:
+          receivers: [filelog]
+          processors: [memory_limiter, resource/logs, batch]
+          exporters: [otlphttp/loki]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector
+  namespace: observabilidade
+  labels:
+    app: otel-collector
+spec:
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.116.0
+          args:
+            - --config=/conf/otel-collector.yaml
+          securityContext:
+            runAsUser: 0          # necessário para ler os arquivos de log do nó
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: prom-metrics
+              containerPort: 8889
+            - name: health
+              containerPort: 13133
+          readinessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet: { path: /, port: health }
+            initialDelaySeconds: 15
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            # com o driver docker, /var/log/pods aponta para estes arquivos
+            - name: dockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: dockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: observabilidade
+  labels:
+    app: otel-collector
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+    - name: prom-metrics
+      port: 8889
+      targetPort: 8889

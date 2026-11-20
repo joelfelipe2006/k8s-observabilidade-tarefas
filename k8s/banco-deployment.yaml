@@ -1,0 +1,69 @@
+# =============================================================================
+# Desenvolvimento de Sistemas Distribuídos - ADS4 - SENAI FATESG
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Banco de dados PostgreSQL 16 (1 réplica, com volume persistente).
+# Usa strategy Recreate para nunca existirem dois pods escrevendo no mesmo volume.
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: banco
+  labels:
+    app: banco
+    tier: database
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: banco
+  template:
+    metadata:
+      labels:
+        app: banco
+        tier: database
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: banco-secret          # POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          args:
+            # Loga cada conexão e cada comando de escrita -> aparece no Loki
+            - "-c"
+            - "log_connections=on"
+            - "-c"
+            - "log_statement=mod"
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: dados
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: dados
+          persistentVolumeClaim:
+            claimName: banco-pvc

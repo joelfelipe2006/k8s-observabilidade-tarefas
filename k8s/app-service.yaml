@@ -1,0 +1,22 @@
+# =============================================================================
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Service NodePort que expõe a aplicação para fora do cluster e distribui
+# as requisições entre as 2 réplicas.
+#   URL:  minikube service app-service --url
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  labels:
+    app: app
+spec:
+  type: NodePort
+  selector:
+    app: app
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      nodePort: 30080

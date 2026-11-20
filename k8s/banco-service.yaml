@@ -1,0 +1,20 @@
+# =============================================================================
+# Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
+#
+# Service ClusterIP do banco: acessível só de dentro do cluster pelo nome
+# DNS "banco-service" (é o DB_HOST usado pela aplicação).
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: banco-service
+  labels:
+    app: banco
+spec:
+  type: ClusterIP
+  selector:
+    app: banco
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
