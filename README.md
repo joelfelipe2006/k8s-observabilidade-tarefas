@@ -40,7 +40,7 @@ Aplicação web replicada no Kubernetes, conectada a um banco PostgreSQL e monit
 | Banco de dados | PostgreSQL 16 (Alpine) |
 | Instrumentação | OpenTelemetry SDK 1.29 (Flask + psycopg2) |
 | Orquestração | Kubernetes via Minikube |
-| Observabilidade | Prometheus 2.55 · Loki 3.3 · Tempo 2.6 · OTel Collector 0.116 · Grafana 11.4 |
+| Observabilidade | Prometheus 2.55 · Loki 3.3 · Tempo 2.6 · OTel Collector 0.120 · Grafana 11.4 |
 
 ## 2. Arquitetura da solução
 

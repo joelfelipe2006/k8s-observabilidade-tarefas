@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # Grupo: Joel Felipe dos Santos Gonçalves, Luiz Eduardo Pageu Leite e Gabriel Ribeiro
 #
 # Versão PowerShell (Windows) do gerar-trafego.sh.
@@ -28,3 +28,4 @@ $pods | Group-Object | Select-Object @{n = "Pod"; e = { $_.Name } }, @{n = "Requ
 
 Write-Host "Total de tarefas gravadas no banco:"
 Invoke-RestMethod -Uri "$Url/api/info"
+
